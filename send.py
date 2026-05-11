@@ -1,6 +1,8 @@
 """Sends the daily report via e-mail (SMTP)."""
 import os
 import smtplib
+from dotenv import load_dotenv
+load_dotenv()
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText

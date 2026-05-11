@@ -1,6 +1,10 @@
 instagram:
-  - url: https://www.instagram.com/example_ai_creator/
-    label: Example AI Creator
+  - url: https://www.instagram.com/ai.zajaczkowska/
+    label: AI Zajączkowska
+  - url: https://www.instagram.com/pawelskaluje/
+    label: Paweł Skaluje
+  - url: https://www.instagram.com/oskars_ai_/
+    label: Oskars AI
 
 facebook:
   - url: https://www.facebook.com/example.ai.page
