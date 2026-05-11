@@ -1,0 +1,19 @@
+# AI Creator Daily Report — crontab (wklej na Mikrusie: crontab -e)
+# Upewnij się że ścieżka do venv i projektu jest poprawna
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Pełny pipeline (04:30 każdego dnia)
+30 4 * * * cd /home/user/ai-creator-report && /home/user/.venv/bin/python main.py >> /home/user/logs/report.log 2>&1
+
+# Alternatywnie — osobne kroki (więcej kontroli, łatwiejszy debug):
+# 30 4 * * * cd /home/user/ai-creator-report && .venv/bin/python -m scrapers.social >> logs/report.log 2>&1
+# 00 5 * * * cd /home/user/ai-creator-report && .venv/bin/python -m processing.transcribe >> logs/report.log 2>&1
+# 30 5 * * * cd /home/user/ai-creator-report && .venv/bin/python -m scrapers.rss >> logs/report.log 2>&1
+# 45 5 * * * cd /home/user/ai-creator-report && .venv/bin/python -m processing.analyze >> logs/report.log 2>&1
+# 00 6 * * * cd /home/user/ai-creator-report && .venv/bin/python -m processing.enrich_articles >> logs/report.log 2>&1
+# 30 6 * * * cd /home/user/ai-creator-report && .venv/bin/python -m processing.verify >> logs/report.log 2>&1
+# 00 7 * * * cd /home/user/ai-creator-report && .venv/bin/python -m report.generate >> logs/report.log 2>&1
+# 30 7 * * * cd /home/user/ai-creator-report && .venv/bin/python -m report.audio >> logs/report.log 2>&1
+# 00 8 * * * cd /home/user/ai-creator-report && .venv/bin/python send.py >> logs/report.log 2>&1

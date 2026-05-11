@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a2e; background: #fff; }
+
+  .cover { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: white; padding: 60px 50px; min-height: 200px; }
+  .cover h1 { font-size: 28px; font-weight: 800; letter-spacing: 1px; }
+  .cover .date { margin-top: 10px; font-size: 14px; opacity: 0.75; }
+  .cover .subtitle { margin-top: 6px; font-size: 15px; opacity: 0.9; }
+
+  .section { padding: 30px 40px; border-bottom: 2px solid #f0f0f5; }
+  .section:last-child { border-bottom: none; }
+
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .section-num { background: #302b63; color: white; font-weight: 800; font-size: 12px;
+                  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .section-title { font-size: 17px; font-weight: 700; color: #302b63; }
+
+  .post-card { background: #f8f8ff; border-left: 3px solid #302b63; border-radius: 6px;
+               padding: 12px 15px; margin-bottom: 10px; }
+  .post-card .meta { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .post-card .summary { font-size: 13px; line-height: 1.5; }
+  .post-card .link { font-size: 11px; color: #302b63; margin-top: 5px; }
+  .post-card .engagement { font-size: 11px; color: #555; margin-top: 3px; }
+
+  .trend-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-right: 5px; }
+  .badge-breaking { background: #ff4757; color: white; }
+  .badge-trending { background: #2ed573; color: #1a1a2e; }
+  .badge-recurring { background: #dfe6e9; color: #636e72; }
+  .badge-fading { background: #b2bec3; color: #636e72; }
+
+  .trend-card { padding: 10px 14px; margin-bottom: 8px; border-radius: 6px; background: #f8f8ff; }
+  .trend-card .topic { font-weight: 700; font-size: 14px; }
+  .trend-card .stats { font-size: 11px; color: #777; margin-top: 3px; }
+  .delta-pos { color: #27ae60; font-weight: 600; }
+  .delta-neg { color: #e74c3c; font-weight: 600; }
+
+  .script-card { background: #f8f8ff; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+  .script-card .script-title { font-weight: 700; font-size: 13px; color: #302b63; margin-bottom: 8px; }
+  .script-part { margin-bottom: 6px; }
+  .script-part strong { color: #302b63; }
+
+  .hook-card { background: #fff9f0; border-left: 3px solid #f39c12; border-radius: 6px;
+               padding: 10px 14px; margin-bottom: 8px; }
+  .hook-card .hook-text { font-style: italic; font-size: 13px; }
+  .hook-card .why { font-size: 12px; color: #777; margin-top: 4px; }
+  .hook-type-badge { font-size: 10px; background: #f39c12; color: white; padding: 1px 6px; border-radius: 8px; }
+
+  .article-card { padding: 10px 14px; margin-bottom: 8px; background: #f0f8ff; border-radius: 6px; }
+  .article-card .title { font-weight: 600; font-size: 13px; }
+  .article-card .bullets { font-size: 12px; line-height: 1.7; margin-top: 5px; color: #333; white-space: pre-line; }
+  .article-card .source { font-size: 11px; color: #888; margin-top: 4px; }
+
+  .top-post { background: #fff8e1; border-left: 4px solid #f39c12; border-radius: 6px;
+              padding: 14px 16px; margin-bottom: 14px; }
+  .top-post .rank { font-size: 20px; font-weight: 900; color: #f39c12; }
+  .top-post .why-viral { font-size: 12px; color: #777; margin-top: 6px; border-top: 1px solid #ffe082; padding-top: 6px; }
+
+  footer { text-align: center; padding: 20px; font-size: 11px; color: #aaa; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="subtitle">🤖 AI Creator Intelligence Report</div>
+  <h1>Twój Dzienny Brief AI</h1>
+  <div class="date">{{ date }}</div>
+</div>
+
+<!-- SECTION I: Dziennik AI Social -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">I</div>
+    <div class="section-title">Dziennik AI Social</div>
+  </div>
+  {% for post in social_posts %}
+  <div class="post-card">
+    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · engagement: {{ post.engagement_score }}</div>
+    <div class="summary">{{ post.summary_pl or post.content[:200] }}</div>
+    {% if post.url %}<div class="link">🔗 <a href="{{ post.url }}">{{ post.url }}</a></div>{% endif %}
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak postów z ostatnich 24h.</p>
+  {% endfor %}
+</div>
+
+<!-- SECTION II: Radar Nowości AI -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">II</div>
+    <div class="section-title">Radar Nowości AI</div>
+  </div>
+  {% for cluster in trend_clusters %}
+  <div class="trend-card">
+    <div>
+      {% set badge_class = "badge-" + cluster.status.split("_")[0] %}
+      <span class="trend-badge {{ badge_class }}">{{ cluster.status.split("_")[0] | upper }}</span>
+      <span class="topic">{{ cluster.topic }}</span>
+    </div>
+    <div class="stats">
+      {{ cluster.cross_source_count }} źródeł ·
+      engagement: {{ cluster.total_engagement }}
+      {% if cluster.engagement_delta > 0 %}
+        · <span class="delta-pos">▲ +{{ cluster.engagement_delta }} vs tydzień</span>
+      {% elif cluster.engagement_delta < 0 %}
+        · <span class="delta-neg">▼ {{ cluster.engagement_delta }} vs tydzień</span>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak trendów dziś.</p>
+  {% endfor %}
+</div>
+
+<!-- SECTION III: Top 3 Posty z Engagementem -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">III</div>
+    <div class="section-title">Top 3 Posty + Dlaczego Viralują</div>
+  </div>
+  {% for post in top_posts %}
+  <div class="top-post">
+    <div class="rank">#{{ loop.index }}</div>
+    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · {{ post.engagement_score }} pkt</div>
+    <div class="summary">{{ post.summary_pl or post.content[:300] }}</div>
+    {% if post.hook_text %}
+    <div class="why-viral">
+      <strong>Hook:</strong> "{{ post.hook_text }}"<br>
+      <strong>Dlaczego działa:</strong> {{ post.why_it_works }}
+    </div>
+    {% endif %}
+    {% if post.url %}<div class="link" style="margin-top:6px">🔗 <a href="{{ post.url }}">{{ post.url }}</a></div>{% endif %}
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak danych.</p>
+  {% endfor %}
+</div>
+
+<!-- SECTION IV: Newslettery / Research -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">IV</div>
+    <div class="section-title">Newslettery & Blogi AI</div>
+  </div>
+  {% for article in articles %}
+  <div class="article-card">
+    <div class="title">{{ article.title }}</div>
+    {% if article.summary_pl %}
+    <div class="bullets">{{ article.summary_pl }}</div>
+    {% endif %}
+    <div class="source">📰 {{ article.source_label }}{% if article.url %} · <a href="{{ article.url }}">link</a>{% endif %}</div>
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak artykułów dziś.</p>
+  {% endfor %}
+</div>
+
+<!-- SECTION V: Gotowe Skrypty Wideo -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">V</div>
+    <div class="section-title">Gotowe Skrypty Wideo</div>
+  </div>
+  {% for script in video_scripts %}
+  <div class="script-card">
+    <div class="script-title">Skrypt #{{ loop.index }}: {{ script.topic }}</div>
+    <div class="script-part"><strong>🎣 HOOK:</strong> {{ script.hook }}</div>
+    <div class="script-part"><strong>📖 BODY:</strong> {{ script.body }}</div>
+    <div class="script-part"><strong>📢 CTA:</strong> {{ script.cta }}</div>
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak skryptów (brak danych o trendach).</p>
+  {% endfor %}
+</div>
+
+<!-- SECTION VI: Baza Hooków AI -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">VI</div>
+    <div class="section-title">Baza Hooków AI</div>
+  </div>
+  {% for hook in hooks %}
+  <div class="hook-card">
+    <div><span class="hook-type-badge">{{ hook.hook_type or "unknown" }}</span></div>
+    <div class="hook-text">"{{ hook.hook_text }}"</div>
+    {% if hook.why_it_works %}
+    <div class="why">💡 {{ hook.why_it_works }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p style="color:#aaa">Brak hooków dziś.</p>
+  {% endfor %}
+</div>
+
+<footer>
+  Wygenerowano automatycznie · {{ date }} · AI Creator Intelligence Report
+</footer>
+
+</body>
+</html>
