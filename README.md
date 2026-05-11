@@ -7,17 +7,17 @@ Codzienny raport PDF dla twórców contentu AI. Scrape'uje Instagram, Facebook i
 ## Wymagania
 
 - Python 3.12+
-- Konto [Supabase](https://supabase.com) (darmowe)
+- Docker (do uruchomienia PostgreSQL)
 - Konto [Apify](https://apify.com) (płatne, ~30-50 PLN/mies.)
 - Klucz API [OpenAI](https://platform.openai.com)
 - Klucz API [Anthropic](https://console.anthropic.com)
-- VPS (Mikrus lub inny z Pythonem)
+- VPS Mikrus
 
 ---
 
 ## Instalacja
 
-### 1. Sklonuj / skopiuj projekt na VPS
+### 1. Skopiuj projekt na VPS
 
 ```bash
 cd ~
@@ -25,7 +25,15 @@ git clone <repo> ai-creator-report
 cd ai-creator-report
 ```
 
-### 2. Utwórz virtualenv i zainstaluj zależności
+### 2. Uruchom bazę danych
+
+```bash
+docker compose up -d
+```
+
+PostgreSQL startuje na porcie `5432`, tabele tworzone są automatycznie ze skryptu `db/schema.sql`.
+
+### 3. Utwórz virtualenv i zainstaluj zależności
 
 ```bash
 python3 -m venv .venv
@@ -34,7 +42,7 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 3. Skonfiguruj zmienne środowiskowe
+### 4. Skonfiguruj zmienne środowiskowe
 
 ```bash
 cp .env.example .env
@@ -44,8 +52,7 @@ nano .env
 Wypełnij wszystkie wartości:
 
 ```env
-SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-SUPABASE_KEY=twoj_klucz_supabase
+DATABASE_URL=postgresql://user:password@localhost:5432/ai_report
 
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
@@ -61,10 +68,6 @@ REPORT_OUTPUT_DIR=/home/twoj_user/reports
 ```
 
 > **Gmail SMTP:** wejdź na myaccount.google.com → Bezpieczeństwo → Hasła do aplikacji → wygeneruj hasło dla "Poczta".
-
-### 4. Utwórz tabele w Supabase
-
-Wejdź na [supabase.com](https://supabase.com) → Twój projekt → **SQL Editor** → wklej zawartość pliku `db/schema.sql` → kliknij **Run**.
 
 ### 5. Dodaj konta do śledzenia
 
@@ -144,6 +147,7 @@ crontab -l
 ```
 ai-creator-report/
 ├── accounts.yaml          # lista kont do śledzenia (edytuj to)
+├── docker-compose.yml     # PostgreSQL kontener
 ├── main.py                # orchestrator — odpala cały pipeline
 ├── send.py                # wysyłka e-mail
 ├── requirements.txt
@@ -166,8 +170,8 @@ ai-creator-report/
 │       └── report.html    # szablon PDF
 │
 └── db/
-    ├── schema.sql          # tabele Supabase (uruchom raz)
-    └── queries.py          # funkcje do bazy danych
+    ├── schema.sql         # schemat bazy (uruchamiany automatycznie przez Docker)
+    └── queries.py         # funkcje do bazy danych
 ```
 
 ---
@@ -193,5 +197,4 @@ ai-creator-report/
 | Apify (scraping) | ~30-50 PLN |
 | OpenAI (Whisper + GPT-4o mini) | ~10-20 PLN |
 | Claude Sonnet 4.6 | ~5-10 PLN |
-| Supabase | 0 PLN |
 | **Razem** | **~60-95 PLN/mies.** |
