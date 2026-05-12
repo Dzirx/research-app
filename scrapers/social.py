@@ -20,26 +20,26 @@ def scrape_instagram_reels(client: ApifyClient, accounts: list) -> list:
             "resultsLimit": 10,
             "onlyPostsNewerThan": "26 hours",
         })
-            for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-                owner = item.get("ownerUsername", "")
-                transcript = item.get("transcript", "") or ""
-                caption = item.get("caption", "") or ""
-                content = caption
-                if transcript:
-                    content = f"{caption}\n\n[TRANSKRYPCJA]: {transcript}".strip()
-                results.append({
-                    "platform": "instagram",
-                    "account_label": label_map.get(owner, owner),
-                    "content": content,
-                    "url": item.get("url", ""),
-                    "engagement_score": (
-                        (item.get("likesCount") or 0)
-                        + (item.get("commentsCount") or 0) * 3
-                        + (item.get("sharesCount") or 0) * 5
-                        + (item.get("videoPlayCount") or 0) // 10
-                    ),
-                    "video_url": item.get("videoUrl"),
-                })
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+            owner = item.get("ownerUsername", "")
+            transcript = item.get("transcript", "") or ""
+            caption = item.get("caption", "") or ""
+            content = caption
+            if transcript:
+                content = f"{caption}\n\n[TRANSKRYPCJA]: {transcript}".strip()
+            results.append({
+                "platform": "instagram",
+                "account_label": label_map.get(owner, owner),
+                "content": content,
+                "url": item.get("url", ""),
+                "engagement_score": (
+                    (item.get("likesCount") or 0)
+                    + (item.get("commentsCount") or 0) * 3
+                    + (item.get("sharesCount") or 0) * 5
+                    + (item.get("videoPlayCount") or 0) // 10
+                ),
+                "video_url": item.get("videoUrl"),
+            })
     return results
 
 
