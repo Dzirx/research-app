@@ -3,7 +3,6 @@ import json
 import os
 from openai import OpenAI
 from db.queries import get_client, get_articles_today
-from supabase import Client
 
 SYSTEM = """Jesteś analitykiem AI. Dla każdego artykułu zwróć obiekt z polami:
 - id: id artykułu (bez zmian)
