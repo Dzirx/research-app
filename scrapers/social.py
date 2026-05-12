@@ -9,46 +9,15 @@ def load_accounts() -> dict:
     with open("accounts.yaml") as f:
         return yaml.safe_load(f)
 
-
-def scrape_instagram_reels(client: ApifyClient, accounts: list) -> list:
-    results = []
-    label_map = {a["url"].rstrip("/").split("/")[-1]: a["label"] for a in accounts}
-    for account in accounts:
-        username = account["url"].rstrip("/").split("/")[-1]
-        run = client.actor("apify/instagram-reel-scraper").call(run_input={
-            "username": username,
-            "resultsLimit": 10,
-            "onlyPostsNewerThan": "26 hours",
-        })
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            owner = item.get("ownerUsername", "")
-            transcript = item.get("transcript", "") or ""
-            caption = item.get("caption", "") or ""
-            content = caption
-            if transcript:
-                content = f"{caption}\n\n[TRANSKRYPCJA]: {transcript}".strip()
-            results.append({
-                "platform": "instagram",
-                "account_label": label_map.get(owner, owner),
-                "content": content,
-                "url": item.get("url", ""),
-                "engagement_score": (
-                    (item.get("likesCount") or 0)
-                    + (item.get("commentsCount") or 0) * 3
-                    + (item.get("sharesCount") or 0) * 5
-                    + (item.get("videoPlayCount") or 0) // 10
-                ),
-                "video_url": item.get("videoUrl"),
-            })
-    return results
-
-
 def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
     results = []
     label_map = {a["url"].rstrip("/").split("/")[-1]: a["label"] for a in accounts}
+    usernames = [a["url"].rstrip("/").split("/")[-1] for a in accounts]
     run = client.actor("apify/instagram-post-scraper").call(run_input={
-        "directUrls": [a["url"] for a in accounts],
+        "username": usernames,
         "resultsLimit": 10,
+        "onlyPostsNewerThan": "1 day",
+        "skipPinnedPosts": True,
     })
     for item in client.dataset(run["defaultDatasetId"]).iterate_items():
         username = item.get("ownerUsername", "")
@@ -57,11 +26,12 @@ def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
             "account_label": label_map.get(username, username),
             "content": item.get("caption", "") or "",
             "url": item.get("url", ""),
+            "video_url": item.get("videoUrl"),
             "engagement_score": (
                 (item.get("likesCount") or 0)
                 + (item.get("commentsCount") or 0) * 3
+                + (item.get("videoPlayCount") or 0) // 10
             ),
-            "video_url": None,
         })
     return results
 
@@ -88,7 +58,6 @@ def scrape_facebook(client: ApifyClient, accounts: list) -> list:
                 + (item.get("shares") or 0) * 5
                 + (item.get("viewsCount") or 0) // 10
             ),
-            "video_url": None,
         })
     return results
 
@@ -100,13 +69,8 @@ def run():
 
     all_posts = []
     if accounts.get("instagram"):
-        # Reelsy mają wbudowany transcript — scrapeujemy osobno
-        reels = scrape_instagram_reels(apify, accounts["instagram"])
         posts = scrape_instagram_posts(apify, accounts["instagram"])
-        # deduplikacja po url — reel wygrywa nad postem jeśli ten sam url
-        seen_urls = {r["url"] for r in reels}
-        posts = [p for p in posts if p["url"] not in seen_urls]
-        all_posts += reels + posts
+        all_posts += posts
 
     if accounts.get("facebook"):
         all_posts += scrape_facebook(apify, accounts["facebook"])

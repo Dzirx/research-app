@@ -1,4 +1,4 @@
-"""Downloads and transcribes IG Reels audio via OpenAI Whisper."""
+"""Downloads and transcribes IG video posts via OpenAI Whisper."""
 import os
 import tempfile
 import httpx
@@ -6,7 +6,7 @@ from openai import OpenAI
 from db.queries import get_client, get_posts_today, insert_transcription
 
 
-def download_audio(video_url: str, dest_path: str):
+def download_video(video_url: str, dest_path: str):
     with httpx.stream("GET", video_url, follow_redirects=True, timeout=60) as r:
         r.raise_for_status()
         with open(dest_path, "wb") as f:
@@ -38,14 +38,13 @@ def run(posts: list | None = None):
             continue
         try:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as tmp:
-                download_audio(video_url, tmp.name)
+                download_video(video_url, tmp.name)
                 transcript = transcribe_audio(openai_client, tmp.name)
             insert_transcription(db, post["id"] if "id" in post else post["db_id"], transcript)
-            # enrich content for downstream analysis
             post["content"] = (post.get("content") or "") + "\n\n[TRANSKRYPCJA]: " + transcript
             transcribed += 1
         except Exception as e:
-            print(f"[transcribe] ERROR post {post.get('url')}: {e}")
+            print(f"[transcribe] ERROR {post.get('url')}: {e}")
 
     print(f"[transcribe] transcribed {transcribed} videos")
     return posts

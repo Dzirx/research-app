@@ -42,10 +42,13 @@ def run():
         return
 
     enriched = enrich(openai_client, articles)
-    for item in enriched:
-        db.table("articles").update({
-            "summary_pl": item.get("summary_pl", ""),
-        }).eq("id", item["id"]).execute()
+    with db.cursor() as cur:
+        for item in enriched:
+            cur.execute(
+                "UPDATE articles SET summary_pl = %s WHERE id = %s",
+                (item.get("summary_pl", ""), item["id"]),
+            )
+    db.commit()
 
     print(f"[enrich] enriched {len(enriched)} articles")
 

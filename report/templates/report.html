@@ -78,7 +78,7 @@
   </div>
   {% for post in social_posts %}
   <div class="post-card">
-    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · engagement: {{ post.engagement_score }}</div>
+    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · zasięg: {{ post.engagement_score }}</div>
     <div class="summary">{{ post.summary_pl or post.content[:200] }}</div>
     {% if post.url %}<div class="link">🔗 <a href="{{ post.url }}">{{ post.url }}</a></div>{% endif %}
   </div>
@@ -93,7 +93,7 @@
     <div class="section-num">II</div>
     <div class="section-title">Radar Nowości AI</div>
   </div>
-  {% for cluster in trend_clusters %}
+  {% for cluster in trend_clusters[:10] %}
   <div class="trend-card">
     <div>
       {% set badge_class = "badge-" + cluster.status.split("_")[0] %}
@@ -102,7 +102,7 @@
     </div>
     <div class="stats">
       {{ cluster.cross_source_count }} źródeł ·
-      engagement: {{ cluster.total_engagement }}
+      zasięg: {{ cluster.total_engagement }}
       {% if cluster.engagement_delta > 0 %}
         · <span class="delta-pos">▲ +{{ cluster.engagement_delta }} vs tydzień</span>
       {% elif cluster.engagement_delta < 0 %}

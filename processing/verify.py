@@ -41,7 +41,7 @@ def run():
 
     response = claude.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2048,
+        max_tokens=8192,
         messages=[
             {"role": "user", "content": f"{SYSTEM}\n\nKlastry:\n{json.dumps(payload, ensure_ascii=False)}"},
         ],
@@ -52,12 +52,15 @@ def run():
     end = text.rfind("}") + 1
     data = json.loads(text[start:end])
 
-    for item in data.get("clusters", []):
-        matching = [c for c in clusters if c["topic"] == item["topic"]]
-        for cluster in matching:
-            db.table("trend_clusters").update({
-                "status": f"{cluster['status']}_{item['verdict']}",
-            }).eq("id", cluster["id"]).execute()
+    with db.cursor() as cur:
+        for item in data.get("clusters", []):
+            matching = [c for c in clusters if c["topic"] == item["topic"]]
+            for cluster in matching:
+                cur.execute(
+                    "UPDATE trend_clusters SET status = %s WHERE id = %s",
+                    (f"{cluster['status']}_{item['verdict']}", cluster["id"]),
+                )
+    db.commit()
 
     print(f"[verify] verified {len(data.get('clusters', []))} clusters")
 

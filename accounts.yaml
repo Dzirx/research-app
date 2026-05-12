@@ -6,23 +6,23 @@ instagram:
   - url: https://www.instagram.com/oskars_ai_/
     label: Oskars AI
 
-facebook:
-  - url: https://www.facebook.com/example.ai.page
-    label: Example AI Page
+# facebook:
+#   - url: https://www.facebook.com/example.ai.page
+#     label: Example AI Page
 
-# TikTok zostanie dodany w v2
-# tiktok:
-#   - url: https://www.tiktok.com/@example_ai
-#     label: Example AI TikTok
+# # TikTok zostanie dodany w v2
+# # tiktok:
+# #   - url: https://www.tiktok.com/@example_ai
+# #     label: Example AI TikTok
 
-rss:
-  - url: https://tldr.tech/ai/rss
-    label: TLDR AI
-  - url: https://bensbites.beehiiv.com/feed
-    label: Ben's Bites
-  - url: https://www.anthropic.com/rss.xml
-    label: Anthropic Blog
-  - url: https://openai.com/news/rss.xml
-    label: OpenAI Blog
-  - url: https://deepmind.google/blog/rss.xml
-    label: Google DeepMind Blog
+# rss:
+#   - url: https://tldr.tech/ai/rss
+#     label: TLDR AI
+#   - url: https://bensbites.beehiiv.com/feed
+#     label: Ben's Bites
+#   - url: https://www.anthropic.com/rss.xml
+#     label: Anthropic Blog
+#   - url: https://openai.com/news/rss.xml
+#     label: OpenAI Blog
+#   - url: https://deepmind.google/blog/rss.xml
+#     label: Google DeepMind Blog

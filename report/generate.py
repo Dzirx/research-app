@@ -5,6 +5,7 @@ import json
 import os
 from datetime import date
 from pathlib import Path
+import psycopg2.extras
 from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 from openai import OpenAI
@@ -71,26 +72,16 @@ def build_context(db, openai_client: OpenAI, report_date: str) -> dict:
     hooks = get_hooks_today(db)
     scripts = generate_scripts(openai_client, clusters)
 
-    # flatten top_posts with summary + hook data
-    top_posts = []
-    for p in top_posts_raw:
-        summary_data = (p.get("summaries") or [{}])
-        hook_data = (p.get("hooks") or [{}])
-        summary = summary_data[0] if isinstance(summary_data, list) else summary_data
-        hook = hook_data[0] if isinstance(hook_data, list) else hook_data
-        top_posts.append({
-            **p,
-            "summary_pl": summary.get("summary_pl") if summary else None,
-            "hook_text": hook.get("hook_text") if hook else None,
-            "why_it_works": hook.get("why_it_works") if hook else None,
-        })
+    top_posts = top_posts_raw
 
     # attach summaries to social posts (first 20 for diary section)
     social_posts = []
-    for post in posts[:20]:
-        summaries = db.table("summaries").select("summary_pl").eq("post_id", post["id"]).execute().data
-        post["summary_pl"] = summaries[0]["summary_pl"] if summaries else None
-        social_posts.append(post)
+    with db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        for post in sorted(posts, key=lambda p: p.get("engagement_score", 0), reverse=True)[:20]:
+            cur.execute("SELECT summary_pl FROM summaries WHERE post_id = %s LIMIT 1", (post["id"],))
+            row = cur.fetchone()
+            post["summary_pl"] = row["summary_pl"] if row else None
+            social_posts.append(post)
 
     return {
         "date": report_date,
