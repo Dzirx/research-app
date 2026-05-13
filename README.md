@@ -8,7 +8,7 @@ Codzienny raport PDF dla twórców contentu AI. Scrape'uje Instagram, Facebook i
 
 - Python 3.12+
 - Docker (do uruchomienia PostgreSQL)
-- Konto [Apify](https://apify.com) (płatne, ~30-50 PLN/mies.)
+- Konto [Apify](https://apify.com) (~$0.30/mies. przy codziennym uruchomieniu)
 - Klucz API [OpenAI](https://platform.openai.com)
 - Klucz API [Anthropic](https://console.anthropic.com)
 - VPS Mikrus
@@ -189,12 +189,22 @@ ai-creator-report/
 
 ---
 
-## Szacowany koszt miesięczny
+## Koszt jednego uruchomienia (zmierzony)
+
+| Usługa | Koszt |
+|--------|-------|
+| Apify (instagram-post-scraper) | ~$0.01 |
+| OpenAI (Whisper + GPT-4o mini) | ~$0.02 |
+| Claude Sonnet 4.6 (verify) | ~$0.01 |
+| **Razem / dzień** | **~$0.04** |
+| **Razem / miesiąc** | **~$1.20** |
+
+> Pomiar przy 3 postach z Instagrama. Przy większej liczbie kont i postów koszt wzrośnie liniowo.
+
+## Szacowany koszt miesięczny (z VPS)
 
 | Usługa | Koszt |
 |--------|-------|
 | Mikrus VPS | ~15 PLN |
-| Apify (scraping) | ~30-50 PLN |
-| OpenAI (Whisper + GPT-4o mini) | ~10-20 PLN |
-| Claude Sonnet 4.6 | ~5-10 PLN |
-| **Razem** | **~60-95 PLN/mies.** |
+| API (Apify + OpenAI + Claude) | ~5 PLN |
+| **Razem** | **~20 PLN/mies.** |
