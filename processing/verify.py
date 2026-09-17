@@ -52,14 +52,13 @@ def run():
     end = text.rfind("}") + 1
     data = json.loads(text[start:end])
 
-    with db.cursor() as cur:
-        for item in data.get("clusters", []):
-            matching = [c for c in clusters if c["topic"] == item["topic"]]
-            for cluster in matching:
-                cur.execute(
-                    "UPDATE trend_clusters SET status = %s WHERE id = %s",
-                    (f"{cluster['status']}_{item['verdict']}", cluster["id"]),
-                )
+    for item in data.get("clusters", []):
+        matching = [c for c in clusters if c["topic"] == item["topic"]]
+        for cluster in matching:
+            db.execute(
+                "UPDATE trend_clusters SET status = ? WHERE id = ?",
+                (f"{cluster['status']}_{item['verdict']}", cluster["id"]),
+            )
     db.commit()
 
     print(f"[verify] verified {len(data.get('clusters', []))} clusters")

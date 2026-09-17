@@ -24,7 +24,10 @@ Dla każdego posta zwróć obiekt z polami:
 - hook_type: jeden z: FOMO | controversy | demo | breaking_news | secret_trick | educational | social_proof
 - hook_text: dosłowny lub sparafrazowany fragment który jest hookiem (pierwsze zdanie/tytuł który zatrzymuje)
 - why_it_works: 1-2 zdania dlaczego ten hook działa psychologicznie
-- trend_tags: lista 1-3 słów kluczowych (np. ["GPT-5", "prompt engineering"])
+- trend_tags: lista 1-3 KONKRETNYCH słów kluczowych. Unikaj samodzielnych ogólników typu
+  "AI", "ChatGPT", "sztuczna inteligencja" — one pasują do każdego posta i psują wykrywanie trendów.
+  Zamiast tego pisz konkretnie, np. "GPT-5 release", "prompt engineering", "agent AI n8n",
+  "automatyzacja leadów". Ogólnik możesz użyć TYLKO jako część frazy, nigdy sam.
 Format: {"posts": [...]}
 """
 

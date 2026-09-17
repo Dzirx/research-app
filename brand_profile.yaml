@@ -1,0 +1,35 @@
+# Profil marki używany przy generowaniu skryptów wideo (report/generate.py).
+# Zmieniaj śmiało — to jedyne miejsce, które trzeba edytować, żeby dostosować ton skryptów.
+
+kim_jestem: >
+  Mateusz Olejarski, DevOps/Cloud Specialist z Lublina. Buduję automatyzacje,
+  które oszczędzają firmom czas i pieniądze.
+
+projekty:
+  - Serwis Gębka
+  - EXIMAUTO
+  - QR-CARS
+  - projekty AI/IoT
+
+temat: >
+  Automatyzacje dla biznesu (B2B) — pokazywanie jak wyglądają automatyzacje "od środka".
+
+cel_tresci: >
+  Przyciągać klientów treścią łączącą humor, realizacje (case studies) i edukację.
+  Nie trzeba mieścić wszystkich trzech w jednym filmie.
+
+styl:
+  - Humor z absurdów firmowych procesów (nie z ludzi).
+  - Zaczynaj od sytuacji/problemu, nie od przedstawienia usługi czy technologii z nazwy.
+  - Żart kończy się puentą, nie wykładem ani morałem o ryzyku biznesowym.
+  - Dopuszczalny format: jedno ujęcie + napisy, bez dialogu.
+  - Mieszaj style — to nie ma być wyłącznie konto komediowe.
+
+priorytety_formatu: rolki > stories (okazjonalnie) > brak karuzeli
+
+cta:
+  domyslne: "PROCES w DM"
+  zasada: Nie wciskaj CTA sprzedażowego na siłę do każdej scenki — tylko gdy pasuje do materiału.
+
+zasady_rzetelnosci:
+  - Nie wymyślaj konkretnych liczb, oszczędności ani wyników wdrożeń, których nie ma w danych źródłowych.

@@ -5,42 +5,84 @@ import json
 import os
 from datetime import date
 from pathlib import Path
-import psycopg2.extras
+import yaml
 from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 from openai import OpenAI
 from db.queries import (
     get_client, get_posts_today, get_today_clusters,
-    get_articles_today, get_top_posts_today, get_hooks_today, save_report,
+    get_top_posts_today, get_hooks_today, get_post_summary,
+    get_recent_script_ideas, insert_script_idea, save_report,
 )
 
-SCRIPTS_SYSTEM = """Jesteś ekspertem content creatorów AI. Na podstawie podanych trendów napisz 3 gotowe skrypty wideo.
+SCRIPTS_SYSTEM_TEMPLATE = """Jesteś ekspertem content creatorów AI. Na podstawie podanych trendów napisz 3 gotowe
+skrypty wideo dopasowane do profilu marki poniżej.
+
+PROFIL MARKI:
+{brand_profile}
+
+JUŻ ZAPROPONOWANE / OPUBLIKOWANE POMYSŁY (ostatnie 60 dni) — NIE POWTARZAJ tych samych
+motywów, metafor ani scen:
+{used_ideas}
+
 Każdy skrypt ma temat z listy trendów "breaking" lub "trending".
-Format JSON: {"scripts": [{"topic": "...", "hook": "...", "body": "...", "cta": "..."}]}
+Format JSON: {{"scripts": [{{"topic": "...", "hook": "...", "body": "...", "cta": "..."}}]}}
 Hook = pierwsze 5 sekund które zatrzymują scrollowanie.
 Body = 3-4 zdania wartościowej treści.
-CTA = wezwanie do działania (follow, komentarz, save).
-Pisz po polsku, w stylu naturalnym twórcy AI.
+CTA = wezwanie do działania — zgodnie z zasadą CTA z profilu marki (nie na siłę do każdej scenki).
+Pisz po polsku, w stylu ze profilu marki.
 """
 
 
-def generate_scripts(openai_client: OpenAI, clusters: list) -> list:
+def load_brand_profile() -> str:
+    path = Path(__file__).parent.parent / "brand_profile.yaml"
+    if not path.exists():
+        return "(brak brand_profile.yaml — pisz neutralnie, w stylu twórcy AI)"
+    with open(path) as f:
+        profile = yaml.safe_load(f)
+    return yaml.safe_dump(profile, allow_unicode=True, sort_keys=False)
+
+
+def format_used_ideas(ideas: list) -> str:
+    if not ideas:
+        return "(brak — to pierwsza paczka skryptów)"
+    return "\n".join(f"- {i['topic']}: {i['hook']}" for i in ideas)
+
+
+def generate_scripts(openai_client: OpenAI, clusters: list, db) -> list:
     trending = [c for c in clusters if "breaking" in c["status"] or "trending" in c["status"]]
     if not trending:
         trending = clusters[:3]
     if not trending:
         return []
     payload = [{"topic": c["topic"], "engagement": c["total_engagement"]} for c in trending[:5]]
+
+    system = SCRIPTS_SYSTEM_TEMPLATE.format(
+        brand_profile=load_brand_profile(),
+        used_ideas=format_used_ideas(get_recent_script_ideas(db, days=60)),
+    )
+
     response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5.6-sol",
         messages=[
-            {"role": "system", "content": SCRIPTS_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ],
         response_format={"type": "json_object"},
     )
     data = json.loads(response.choices[0].message.content)
-    return data.get("scripts", [])
+    scripts = data.get("scripts", [])
+
+    for script in scripts:
+        insert_script_idea(
+            db,
+            topic=script.get("topic", ""),
+            hook=script.get("hook", ""),
+            body=script.get("body", ""),
+            cta=script.get("cta", ""),
+        )
+
+    return scripts
 
 
 def render_html(context: dict) -> str:
@@ -67,28 +109,21 @@ def html_to_pdf(html: str, output_path: str):
 def build_context(db, openai_client: OpenAI, report_date: str) -> dict:
     posts = get_posts_today(db)
     clusters = get_today_clusters(db)
-    articles = get_articles_today(db)
-    top_posts_raw = get_top_posts_today(db, limit=3)
+    top_posts = get_top_posts_today(db, limit=3)
     hooks = get_hooks_today(db)
-    scripts = generate_scripts(openai_client, clusters)
-
-    top_posts = top_posts_raw
+    scripts = generate_scripts(openai_client, clusters, db)
 
     # attach summaries to social posts (first 20 for diary section)
     social_posts = []
-    with db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        for post in sorted(posts, key=lambda p: p.get("engagement_score", 0), reverse=True)[:20]:
-            cur.execute("SELECT summary_pl FROM summaries WHERE post_id = %s LIMIT 1", (post["id"],))
-            row = cur.fetchone()
-            post["summary_pl"] = row["summary_pl"] if row else None
-            social_posts.append(post)
+    for post in sorted(posts, key=lambda p: p.get("engagement_score", 0), reverse=True)[:20]:
+        post["summary_pl"] = get_post_summary(db, post["id"])
+        social_posts.append(post)
 
     return {
         "date": report_date,
         "social_posts": social_posts,
         "trend_clusters": clusters,
         "top_posts": top_posts,
-        "articles": articles,
         "video_scripts": scripts,
         "hooks": hooks,
     }

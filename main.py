@@ -7,8 +7,8 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()
 
-from scrapers import social, rss
-from processing import transcribe, analyze, enrich_articles, verify
+from scrapers import social
+from processing import transcribe, analyze, check_published, verify
 from report import generate
 from send import send_report
 
@@ -16,32 +16,28 @@ from send import send_report
 def run_pipeline():
     print("=== AI Creator Report Pipeline START ===")
 
-    # 1. Scrape social media
-    print("\n[1/7] Scraping social media...")
+    # 1. Scrape social media (+ own account, do wykrywania publikacji)
+    print("\n[1/6] Scraping social media...")
     posts = social.run()
 
     # 2. Transcribe IG Reels
-    print("\n[2/7] Transcribing videos...")
+    print("\n[2/6] Transcribing videos...")
     posts = transcribe.run(posts)
 
-    # 3. Scrape RSS / newsletters
-    print("\n[3/7] Scraping RSS feeds...")
-    rss.run()
-
-    # 4. Analyze posts + detect trends
-    print("\n[4/7] Analyzing posts & detecting trends...")
+    # 3. Analyze posts + detect trends
+    print("\n[3/6] Analyzing posts & detecting trends...")
     analyze.run(posts)
 
-    # 5. Enrich articles with Polish summaries
-    print("\n[5/7] Enriching articles...")
-    enrich_articles.run()
+    # 4. Mark proposed script ideas as published if they show up on own account
+    print("\n[4/6] Checking which script ideas got published...")
+    check_published.run()
 
-    # 6. Verify trends (Claude fact-check)
-    print("\n[6/7] Verifying trends...")
+    # 5. Verify trends (Claude fact-check)
+    print("\n[5/6] Verifying trends...")
     verify.run()
 
-    # 7. Generate PDF
-    print("\n[7/7] Generating report...")
+    # 6. Generate PDF
+    print("\n[6/6] Generating report...")
     pdf_path, meta = generate.run()
 
     # Send

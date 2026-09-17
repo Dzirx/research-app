@@ -32,9 +32,8 @@ Co w środku:
 I.   Dziennik AI Social — posty z ostatnich 24h
 II.  Radar Nowości AI — co się dzieje w branży
 III. Top 3 Posty + analiza viralności
-IV.  Newslettery & Blogi AI
-V.   Gotowe Skrypty Wideo (3 gotowe do nagrania)
-VI.  Baza Hooków AI
+IV.  Gotowe Skrypty Wideo (3 gotowe do nagrania)
+V.   Baza Hooków AI
 
 Miłej lektury! 🚀
 """

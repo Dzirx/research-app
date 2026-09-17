@@ -49,11 +49,6 @@
   .hook-card .why { font-size: 12px; color: #777; margin-top: 4px; }
   .hook-type-badge { font-size: 10px; background: #f39c12; color: white; padding: 1px 6px; border-radius: 8px; }
 
-  .article-card { padding: 10px 14px; margin-bottom: 8px; background: #f0f8ff; border-radius: 6px; }
-  .article-card .title { font-weight: 600; font-size: 13px; }
-  .article-card .bullets { font-size: 12px; line-height: 1.7; margin-top: 5px; color: #333; white-space: pre-line; }
-  .article-card .source { font-size: 11px; color: #888; margin-top: 4px; }
-
   .top-post { background: #fff8e1; border-left: 4px solid #f39c12; border-radius: 6px; page-break-inside: avoid;
               padding: 14px 16px; margin-bottom: 14px; }
   .top-post .rank { font-size: 20px; font-weight: 900; color: #f39c12; }
@@ -139,29 +134,10 @@
   {% endfor %}
 </div>
 
-<!-- SECTION IV: Newslettery / Research -->
+<!-- SECTION IV: Gotowe Skrypty Wideo -->
 <div class="section">
   <div class="section-header">
     <div class="section-num">IV</div>
-    <div class="section-title">Newslettery & Blogi AI</div>
-  </div>
-  {% for article in articles %}
-  <div class="article-card">
-    <div class="title">{{ article.title }}</div>
-    {% if article.summary_pl %}
-    <div class="bullets">{{ article.summary_pl }}</div>
-    {% endif %}
-    <div class="source">📰 {{ article.source_label }}{% if article.url %} · <a href="{{ article.url }}">link</a>{% endif %}</div>
-  </div>
-  {% else %}
-  <p style="color:#aaa">Brak artykułów dziś.</p>
-  {% endfor %}
-</div>
-
-<!-- SECTION V: Gotowe Skrypty Wideo -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-num">V</div>
     <div class="section-title">Gotowe Skrypty Wideo</div>
   </div>
   {% for script in video_scripts %}
@@ -176,10 +152,10 @@
   {% endfor %}
 </div>
 
-<!-- SECTION VI: Baza Hooków AI -->
+<!-- SECTION V: Baza Hooków AI -->
 <div class="section">
   <div class="section-header">
-    <div class="section-num">VI</div>
+    <div class="section-num">V</div>
     <div class="section-title">Baza Hooków AI</div>
   </div>
   {% for hook in hooks %}

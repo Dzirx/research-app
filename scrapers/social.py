@@ -2,7 +2,7 @@
 import os
 import yaml
 from apify_client import ApifyClient
-from db.queries import get_client, insert_post
+from db.queries import get_client, insert_post, insert_own_post
 
 
 def load_accounts() -> dict:
@@ -11,7 +11,7 @@ def load_accounts() -> dict:
 
 def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
     results = []
-    label_map = {a["url"].rstrip("/").split("/")[-1]: a["label"] for a in accounts}
+    label_map = {a["url"].rstrip("/").split("/")[-1].lower(): a["label"] for a in accounts}
     usernames = [a["url"].rstrip("/").split("/")[-1] for a in accounts]
     run = client.actor("apify/instagram-post-scraper").call(run_input={
         "username": usernames,
@@ -20,11 +20,17 @@ def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
         "skipPinnedPosts": True,
     })
     for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-        username = item.get("ownerUsername", "")
+        username = (item.get("ownerUsername") or "").lower()
+        content = item.get("caption", "") or ""
+        if not username and not content:
+            # Apify czasem zwraca puste/błędne wpisy (np. po nieudanym pobraniu konta) —
+            # bez ownera i bez treści nie da się ich sensownie przeanalizować ani przypisać.
+            print(f"[social] pomijam pusty wpis: {item.get('url') or item.get('id')}")
+            continue
         results.append({
             "platform": "instagram",
-            "account_label": label_map.get(username, username),
-            "content": item.get("caption", "") or "",
+            "account_label": label_map.get(username, username or "nieznane"),
+            "content": content,
             "url": item.get("url", ""),
             "video_url": item.get("videoUrl"),
             "engagement_score": (
@@ -87,6 +93,14 @@ def run():
         post["db_id"] = post_id
 
     print(f"[social] scraped {len(all_posts)} posts")
+
+    own_accounts = accounts.get("own_account") or []
+    if own_accounts:
+        own_posts = scrape_instagram_posts(apify, own_accounts)
+        for post in own_posts:
+            insert_own_post(db, content=post["content"], url=post["url"])
+        print(f"[social] scraped {len(own_posts)} own posts (do wykrywania publikacji)")
+
     return all_posts
 
 
