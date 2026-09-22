@@ -1,3 +1,8 @@
+# Okno scrapingu przekazywane do Apify (onlyPostsNewerThan). Szersze niż doba, bo
+# śledzone konta nie publikują codziennie — przy "1 day" raport regularnie wychodził
+# pusty. Ten sam post nie trafi do raportu dwa razy: deduplikacja idzie po URL.
+scrape_window: "3 days"
+
 instagram:
   - url: https://www.instagram.com/ai.zajaczkowska/
     label: AI Zajączkowska
@@ -5,6 +10,10 @@ instagram:
     label: Paweł Skaluje
   - url: https://www.instagram.com/oskars_ai_/
     label: Oskars AI
+  - url: https://www.instagram.com/thebarteksliwa/
+    label: Bartek Śliwa
+  - url: https://www.instagram.com/matkowski.ai/
+    label: Matkowski AI
 
 # Twoje własne konto — służy WYŁĄCZNIE do wykrywania, które zaproponowane
 # pomysły na rolkę zostały już opublikowane (żeby ich nie powtarzać).

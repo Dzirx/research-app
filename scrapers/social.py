@@ -4,19 +4,28 @@ import yaml
 from apify_client import ApifyClient
 from db.queries import get_client, insert_post, insert_own_post
 
+# Okno szersze niż doba, bo śledzone konta nie publikują codziennie — przy "1 day"
+# raport regularnie wychodził pusty. Duplikaty odsiewa UNIQUE na posts.url.
+DEFAULT_SCRAPE_WINDOW = "3 days"
+
 
 def load_accounts() -> dict:
     with open("accounts.yaml") as f:
         return yaml.safe_load(f)
 
-def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
+
+def get_scrape_window(accounts: dict) -> str:
+    return (accounts.get("scrape_window") or DEFAULT_SCRAPE_WINDOW).strip()
+
+
+def scrape_instagram_posts(client: ApifyClient, accounts: list, window: str) -> list:
     results = []
     label_map = {a["url"].rstrip("/").split("/")[-1].lower(): a["label"] for a in accounts}
     usernames = [a["url"].rstrip("/").split("/")[-1] for a in accounts]
     run = client.actor("apify/instagram-post-scraper").call(run_input={
         "username": usernames,
         "resultsLimit": 10,
-        "onlyPostsNewerThan": "1 day",
+        "onlyPostsNewerThan": window,
         "skipPinnedPosts": True,
     })
     for item in client.dataset(run["defaultDatasetId"]).iterate_items():
@@ -42,13 +51,13 @@ def scrape_instagram_posts(client: ApifyClient, accounts: list) -> list:
     return results
 
 
-def scrape_facebook(client: ApifyClient, accounts: list) -> list:
+def scrape_facebook(client: ApifyClient, accounts: list, window: str) -> list:
     results = []
     label_map = {a["url"]: a["label"] for a in accounts}
     run = client.actor("apify/facebook-posts-scraper").call(run_input={
         "startUrls": [{"url": a["url"]} for a in accounts],
         "resultsLimit": 10,
-        "onlyPostsNewerThan": "26 hours",
+        "onlyPostsNewerThan": window,
     })
     for item in client.dataset(run["defaultDatasetId"]).iterate_items():
         input_url = item.get("inputUrl", "")
@@ -69,20 +78,29 @@ def scrape_facebook(client: ApifyClient, accounts: list) -> list:
 
 
 def run():
+    """
+    Zwraca WYŁĄCZNIE posty widziane po raz pierwszy. Znane URL-e dostają tylko
+    świeży engagement_score i nie idą dalej — nie ma po co drugi raz płacić
+    za transkrypcję i analizę tego samego materiału.
+    """
     accounts = load_accounts()
+    window = get_scrape_window(accounts)
     apify = ApifyClient(os.environ["APIFY_TOKEN"])
     db = get_client()
 
+    print(f"[social] okno scrapingu: {window}")
+
     all_posts = []
     if accounts.get("instagram"):
-        posts = scrape_instagram_posts(apify, accounts["instagram"])
-        all_posts += posts
+        all_posts += scrape_instagram_posts(apify, accounts["instagram"], window)
 
     if accounts.get("facebook"):
-        all_posts += scrape_facebook(apify, accounts["facebook"])
+        all_posts += scrape_facebook(apify, accounts["facebook"], window)
 
+    new_posts = []
+    known = 0
     for post in all_posts:
-        post_id = insert_post(
+        post_id, is_new = insert_post(
             db,
             platform=post["platform"],
             account_label=post["account_label"],
@@ -91,17 +109,22 @@ def run():
             engagement_score=post["engagement_score"],
         )
         post["db_id"] = post_id
+        post["id"] = post_id
+        if is_new:
+            new_posts.append(post)
+        else:
+            known += 1
 
-    print(f"[social] scraped {len(all_posts)} posts")
+    print(f"[social] {len(new_posts)} nowych, {known} już znanych (zaktualizowano engagement)")
 
     own_accounts = accounts.get("own_account") or []
     if own_accounts:
-        own_posts = scrape_instagram_posts(apify, own_accounts)
+        own_posts = scrape_instagram_posts(apify, own_accounts, window)
         for post in own_posts:
             insert_own_post(db, content=post["content"], url=post["url"])
         print(f"[social] scraped {len(own_posts)} own posts (do wykrywania publikacji)")
 
-    return all_posts
+    return new_posts
 
 
 if __name__ == "__main__":

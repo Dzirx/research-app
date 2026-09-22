@@ -19,6 +19,10 @@
                   width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .section-title { font-size: 17px; font-weight: 700; color: #302b63; }
 
+  .subsection-title { font-size: 13px; font-weight: 700; color: #302b63; margin: 14px 0 8px; }
+  .subsection-title:first-of-type { margin-top: 0; }
+  .subsection-hint { font-size: 11px; font-weight: 400; color: #999; }
+
   .post-card { background: #f8f8ff; border-left: 3px solid #302b63; border-radius: 6px; page-break-inside: avoid;
                padding: 12px 15px; margin-bottom: 10px; }
   .post-card .meta { font-size: 11px; color: #888; margin-bottom: 4px; }
@@ -38,10 +42,12 @@
   .delta-pos { color: #27ae60; font-weight: 600; }
   .delta-neg { color: #e74c3c; font-weight: 600; }
 
-  .script-card { background: #f8f8ff; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+  .script-card { background: #f8f8ff; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; page-break-inside: avoid; }
   .script-card .script-title { font-weight: 700; font-size: 13px; color: #302b63; margin-bottom: 8px; }
   .script-part { margin-bottom: 6px; }
   .script-part strong { color: #302b63; }
+  .script-source { font-size: 11px; color: #777; margin-top: 8px; border-top: 1px solid #e4e4f0; padding-top: 6px; }
+  .script-source a { color: #302b63; }
 
   .hook-card { background: #fff9f0; border-left: 3px solid #f39c12; border-radius: 6px;
                padding: 10px 14px; margin-bottom: 8px; }
@@ -53,11 +59,30 @@
               padding: 14px 16px; margin-bottom: 14px; }
   .top-post .rank { font-size: 20px; font-weight: 900; color: #f39c12; }
   .top-post .why-viral { font-size: 12px; color: #777; margin-top: 6px; border-top: 1px solid #ffe082; padding-top: 6px; }
+  .top-post .key-points { font-size: 12px; color: #555; margin-top: 6px; padding-left: 16px; }
 
   footer { text-align: center; padding: 20px; font-size: 11px; color: #aaa; }
 </style>
 </head>
 <body>
+
+{% macro trend_card(cluster) %}
+  <div class="trend-card">
+    <div>
+      <span class="trend-badge badge-{{ cluster.status }}">{{ cluster.status | upper }}</span>
+      <span class="topic">{{ cluster.topic }}</span>
+    </div>
+    <div class="stats">
+      {{ cluster.cross_source_count }} {{ "źródło" if cluster.cross_source_count == 1 else "źródeł" }} ·
+      engagement: {{ cluster.total_engagement }}
+      {% if cluster.engagement_delta > 0 %}
+        · <span class="delta-pos">▲ +{{ cluster.engagement_delta }} vs tydzień</span>
+      {% elif cluster.engagement_delta < 0 %}
+        · <span class="delta-neg">▼ {{ cluster.engagement_delta }} vs tydzień</span>
+      {% endif %}
+    </div>
+  </div>
+{% endmacro %}
 
 <div class="cover">
   <div class="subtitle">🤖 AI Creator Intelligence Report</div>
@@ -73,12 +98,12 @@
   </div>
   {% for post in social_posts %}
   <div class="post-card">
-    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · zasięg: {{ post.engagement_score }}</div>
+    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · engagement: {{ post.engagement_score }}</div>
     <div class="summary">{{ post.summary_pl or post.content[:200] }}</div>
     {% if post.url %}<div class="link">🔗 <a href="{{ post.url }}">{{ post.url }}</a></div>{% endif %}
   </div>
   {% else %}
-  <p style="color:#aaa">Brak postów z ostatnich 24h.</p>
+  <p style="color:#aaa">Brak nowych postów.</p>
   {% endfor %}
 </div>
 
@@ -88,26 +113,24 @@
     <div class="section-num">II</div>
     <div class="section-title">Radar Nowości AI</div>
   </div>
-  {% for cluster in trend_clusters[:10] %}
-  <div class="trend-card">
-    <div>
-      {% set badge_class = "badge-" + cluster.status.split("_")[0] %}
-      <span class="trend-badge {{ badge_class }}">{{ cluster.status.split("_")[0] | upper }}</span>
-      <span class="topic">{{ cluster.topic }}</span>
-    </div>
-    <div class="stats">
-      {{ cluster.cross_source_count }} źródeł ·
-      zasięg: {{ cluster.total_engagement }}
-      {% if cluster.engagement_delta > 0 %}
-        · <span class="delta-pos">▲ +{{ cluster.engagement_delta }} vs tydzień</span>
-      {% elif cluster.engagement_delta < 0 %}
-        · <span class="delta-neg">▼ {{ cluster.engagement_delta }} vs tydzień</span>
-      {% endif %}
-    </div>
+
+  <div class="subsection-title">
+    Potwierdzone trendy <span class="subsection-hint">— mówi o nich co najmniej 2 różne konta</span>
   </div>
+  {% for cluster in confirmed_trends[:10] %}
+    {{ trend_card(cluster) }}
   {% else %}
-  <p style="color:#aaa">Brak trendów dziś.</p>
+  <p style="color:#aaa">Dziś żaden temat nie powtórzył się na więcej niż jednym koncie.</p>
   {% endfor %}
+
+  {% if single_signals %}
+  <div class="subsection-title">
+    Pojedyncze sygnały <span class="subsection-hint">— jedno konto, za wcześnie żeby mówić o trendzie</span>
+  </div>
+  {% for cluster in single_signals[:10] %}
+    {{ trend_card(cluster) }}
+  {% endfor %}
+  {% endif %}
 </div>
 
 <!-- SECTION III: Top 3 Posty z Engagementem -->
@@ -119,8 +142,13 @@
   {% for post in top_posts %}
   <div class="top-post">
     <div class="rank">#{{ loop.index }}</div>
-    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · {{ post.engagement_score }} pkt</div>
+    <div class="meta">{{ post.platform | upper }} · {{ post.account_label }} · engagement: {{ post.engagement_score }}</div>
     <div class="summary">{{ post.summary_pl or post.content[:300] }}</div>
+    {% if post.key_points %}
+    <ul class="key-points">
+      {% for point in post.key_points %}<li>{{ point }}</li>{% endfor %}
+    </ul>
+    {% endif %}
     {% if post.hook_text %}
     <div class="why-viral">
       <strong>Hook:</strong> "{{ post.hook_text }}"<br>
@@ -145,7 +173,15 @@
     <div class="script-title">Skrypt #{{ loop.index }}: {{ script.topic }}</div>
     <div class="script-part"><strong>🎣 HOOK:</strong> {{ script.hook }}</div>
     <div class="script-part"><strong>📖 BODY:</strong> {{ script.body }}</div>
+    {% if script.cta %}
     <div class="script-part"><strong>📢 CTA:</strong> {{ script.cta }}</div>
+    {% endif %}
+    {% if script.co_z_materialu or script.zrodlo_url %}
+    <div class="script-source">
+      📎 Na bazie: {{ script.co_z_materialu }}
+      {% if script.zrodlo_url %}<br><a href="{{ script.zrodlo_url }}">{{ script.zrodlo_url }}</a>{% endif %}
+    </div>
+    {% endif %}
   </div>
   {% else %}
   <p style="color:#aaa">Brak skryptów (brak danych o trendach).</p>

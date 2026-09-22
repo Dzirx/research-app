@@ -2,25 +2,26 @@ CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     platform TEXT NOT NULL,
     account_label TEXT NOT NULL,
-    content TEXT,
-    url TEXT,
-    scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
+    content TEXT,                  -- caption/opis posta (BEZ doklejanej transkrypcji)
+    url TEXT UNIQUE,               -- klucz deduplikacji: okno scrapingu jest szersze niż doba
+    scraped_at TEXT NOT NULL DEFAULT (datetime('now')),   -- data pierwszego zobaczenia
     engagement_score INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS transcriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+    post_id INTEGER UNIQUE REFERENCES posts(id) ON DELETE CASCADE,
     transcript TEXT,
     model_used TEXT DEFAULT 'whisper-1'
 );
 
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-    summary_pl TEXT,
+    post_id INTEGER UNIQUE REFERENCES posts(id) ON DELETE CASCADE,
+    summary_pl TEXT,        -- streszczenie MERYTORYKI (transkrypcja), nie captionu
     trend_tags TEXT,        -- JSON array, np. ["prompt engineering", "GPT-5"]
-    hook_type TEXT
+    hook_type TEXT,
+    key_points TEXT         -- JSON array konkretów, które padły w materiale
 );
 
 CREATE TABLE IF NOT EXISTS trend_clusters (
@@ -70,7 +71,9 @@ CREATE TABLE IF NOT EXISTS script_ideas (
     cta TEXT,
     status TEXT NOT NULL DEFAULT 'proposed',   -- proposed / published
     matched_post_url TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    source_url TEXT,         -- post, z którego skrypt wyrósł
+    source_note TEXT         -- która obserwacja ze źródła jest podstawą skryptu
 );
 
 CREATE INDEX IF NOT EXISTS idx_posts_scraped_at ON posts(scraped_at DESC);

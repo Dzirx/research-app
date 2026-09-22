@@ -1,10 +1,10 @@
 """
-Analyzes posts + RSS articles with GPT-4o mini.
-Produces: per-post summaries, hooks, and trend clusters (with historical context).
+Analyzes scraped posts with GPT-4o mini.
+Produces: per-post summaries, key points, hooks, and trend clusters (with historical context).
 
 Two-stage approach:
   Stage 1 — summarize posts in batches of 5 (short output per post)
-  Stage 2 — detect trends using only trend_tags (very small prompt)
+  Stage 2 — detect trends using trend_tags + key_points (small prompt)
              engagement_delta computed in Python, not by GPT
 """
 import json
@@ -16,24 +16,49 @@ from db.queries import (
 )
 
 BATCH_SIZE = 5
+CAPTION_LIMIT = 1500
+TRANSCRIPT_LIMIT = 4000
+NO_TRANSCRIPT_MARK = "[brak transkrypcji]"
 
 SUMMARY_SYSTEM = """Jesteś analitykiem contentu AI. Odpowiadasz TYLKO poprawnym JSON-em.
+
+Każdy post ma DWA źródła i NIE są one równorzędne:
+- "transkrypcja_wideo" — to, co twórca faktycznie MÓWI w rolce. To jest MERYTORYKA
+  i główne źródło dla summary_pl, key_points oraz trend_tags.
+- "caption" — opis pod postem: opakowanie marketingowe, CTA, lead magnet, hashtagi.
+  Służy do kontekstu i do wyciągnięcia hook_text. Jeśli jest transkrypcja, NIE streszczaj captionu.
+
+Typowa pułapka: caption obiecuje "skomentuj AI, a wyślę Ci szkolenie", a w rolce twórca
+tłumaczy konkretną metodę. Raport ma opisywać tę metodę, nie obietnicę szkolenia.
+
 Dla każdego posta zwróć obiekt z polami:
 - index: numer z wejścia (bez zmian)
-- summary_pl: 3-4 zdania po polsku opisujące sedno posta — co twórca przekazuje, jaką wiedzę lub opinię
+- summary_pl: 3-4 zdania po polsku o tym, czego post UCZY i co pokazuje — na podstawie
+  transkrypcji. Gdy transkrypcji brak lub jest pusta, streść caption i poprzedź streszczenie
+  znacznikiem "[brak transkrypcji]". Znacznik NIGDY nie jest całą odpowiedzią — po nim
+  zawsze musi iść streszczenie. Pole summary_pl nie może być puste.
+- key_points: 2-5 KONKRETÓW, które realnie padły w materiale — nazwy narzędzi, kroki
+  procesu, metody, liczby. Cytuj to, co jest; nie dopowiadaj i nie uogólniaj.
+  Dobrze: "zebrać maile i notatki w jedną bazę wiedzy dla agenta".
+  Źle: "AI zwiększa produktywność".
+  Jeśli materiał nie zawiera żadnego konkretu — zwróć pustą listę.
 - hook_type: jeden z: FOMO | controversy | demo | breaking_news | secret_trick | educational | social_proof
-- hook_text: dosłowny lub sparafrazowany fragment który jest hookiem (pierwsze zdanie/tytuł który zatrzymuje)
+- hook_text: zdanie, które zatrzymuje scrollowanie — z captionu albo z pierwszych sekund transkrypcji
 - why_it_works: 1-2 zdania dlaczego ten hook działa psychologicznie
-- trend_tags: lista 1-3 KONKRETNYCH słów kluczowych. Unikaj samodzielnych ogólników typu
-  "AI", "ChatGPT", "sztuczna inteligencja" — one pasują do każdego posta i psują wykrywanie trendów.
-  Zamiast tego pisz konkretnie, np. "GPT-5 release", "prompt engineering", "agent AI n8n",
-  "automatyzacja leadów". Ogólnik możesz użyć TYLKO jako część frazy, nigdy sam.
+- trend_tags: lista 1-3 KONKRETNYCH słów kluczowych opisujących MERYTORYKĘ z transkrypcji,
+  a nie obietnicę z captionu. Unikaj samodzielnych ogólników typu "AI", "ChatGPT",
+  "sztuczna inteligencja" — pasują do każdego posta i psują wykrywanie trendów.
+  Zamiast tego pisz konkretnie, np. "baza wiedzy dla agenta", "automatyzacja leadów",
+  "GPT-5 release". Ogólnik możesz użyć TYLKO jako część frazy, nigdy sam.
 Format: {"posts": [...]}
 """
 
 TREND_SYSTEM = """Jesteś analitykiem trendów AI. Odpowiadasz TYLKO poprawnym JSON-em.
-Masz tagi tematyczne postów z dziś oraz listę tematów z historii ostatnich 7 dni.
-Pogrupuj posty w klastry tematyczne i dla każdego klastra zwróć:
+Masz tagi tematyczne i konkrety (key_points) postów z dziś oraz listę tematów z historii
+ostatnich 7 dni. Grupuj po MERYTORYCE — dwa posty należą do jednego klastra, gdy mówią
+o tym samym mechanizmie, nawet jeśli nazywają go inaczej.
+
+Dla każdego klastra zwróć:
 - topic: nazwa tematu (2-4 słowa)
 - status: "breaking" | "trending" | "recurring" | "fading"
   breaking  = temat nie występuje w historii_7d
@@ -70,13 +95,27 @@ def compute_delta(cluster_topic: str, total_engagement: int, history_avg: dict) 
     return total_engagement - avg
 
 
+def ensure_summary(summary: str, caption: str) -> str:
+    """
+    Model bywa zbyt dosłowny i przy poście bez transkrypcji zwraca sam znacznik
+    "[brak transkrypcji]" bez streszczenia. Wtedy podstawiamy początek captionu —
+    lepszy skrócony opis niż pusta karta w raporcie.
+    """
+    text = (summary or "").strip()
+    if text.replace(NO_TRANSCRIPT_MARK, "").strip():
+        return text
+    fallback = " ".join((caption or "").split())[:300]
+    return f"{NO_TRANSCRIPT_MARK} {fallback}".strip() if fallback else text
+
+
 def analyze_batch(openai_client: OpenAI, batch: list, offset: int) -> list:
     payload = [
         {
             "index": offset + i,
             "platform": p.get("platform"),
             "account": p.get("account_label"),
-            "content": p.get("content", "")[:2000],
+            "caption": (p.get("content") or "")[:CAPTION_LIMIT],
+            "transkrypcja_wideo": (p.get("transcript") or "")[:TRANSCRIPT_LIMIT],
             "engagement": p.get("engagement_score", 0),
         }
         for i, p in enumerate(batch)
@@ -109,18 +148,19 @@ def detect_trends(openai_client: OpenAI, analyses: list, posts: list, history: l
 
     history_topics = [h["topic"] for h in history]
 
-    payload = {
-        "posts_today": [
-            {
-                "index": a.get("index", i),
-                "trend_tags": a.get("trend_tags", []),
-                "account": posts[i].get("account_label") if i < len(posts) else "",
-                "engagement": posts[i].get("engagement_score", 0) if i < len(posts) else 0,
-            }
-            for i, a in enumerate(analyses)
-        ],
-        "history_topics_7d": history_topics,
-    }
+    posts_today = []
+    for i, a in enumerate(analyses):
+        idx = a.get("index", i)
+        post = posts[idx] if isinstance(idx, int) and idx < len(posts) else {}
+        posts_today.append({
+            "index": idx,
+            "trend_tags": a.get("trend_tags", []),
+            "key_points": a.get("key_points", []),
+            "account": post.get("account_label", ""),
+            "engagement": post.get("engagement_score", 0),
+        })
+
+    payload = {"posts_today": posts_today, "history_topics_7d": history_topics}
 
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
@@ -153,7 +193,7 @@ def run(posts: list | None = None):
 
     for analysis in analyses:
         idx = analysis.get("index")
-        if idx is None or idx >= len(posts):
+        if not isinstance(idx, int) or idx >= len(posts):
             continue
         post = posts[idx]
         post_db_id = post.get("id") or post.get("db_id")
@@ -161,9 +201,10 @@ def run(posts: list | None = None):
             continue
         insert_summary(
             db, post_db_id,
-            summary_pl=analysis.get("summary_pl", ""),
+            summary_pl=ensure_summary(analysis.get("summary_pl", ""), post.get("content", "")),
             trend_tags=analysis.get("trend_tags", []),
             hook_type=analysis.get("hook_type", ""),
+            key_points=analysis.get("key_points", []),
         )
         if analysis.get("hook_text"):
             insert_hook(
@@ -173,14 +214,14 @@ def run(posts: list | None = None):
                 why_it_works=analysis.get("why_it_works", ""),
             )
 
-    # Stage 2 — trend clustering on tags only
+    # Stage 2 — trend clustering on tags + key points
     clusters = detect_trends(openai_client, analyses, posts, history)
 
     for cluster in clusters:
         post_indices = cluster.get("post_indices", [])
         post_ids = [
             posts[i].get("id") or posts[i].get("db_id")
-            for i in post_indices if i < len(posts)
+            for i in post_indices if isinstance(i, int) and i < len(posts)
         ]
         total_engagement = cluster.get("total_engagement", 0)
 

@@ -1,5 +1,5 @@
 """
-Generates the daily PDF report and video scripts using GPT-4o mini + Jinja2 + Playwright.
+Generates the daily PDF report and video scripts using Jinja2 + Playwright.
 """
 import json
 import os
@@ -12,11 +12,16 @@ from openai import OpenAI
 from db.queries import (
     get_client, get_posts_today, get_today_clusters,
     get_top_posts_today, get_hooks_today, get_post_summary,
-    get_recent_script_ideas, insert_script_idea, save_report,
+    get_cluster_source_material, get_recent_script_ideas,
+    insert_script_idea, save_report,
 )
 
-SCRIPTS_SYSTEM_TEMPLATE = """Jesteś ekspertem content creatorów AI. Na podstawie podanych trendów napisz 3 gotowe
-skrypty wideo dopasowane do profilu marki poniżej.
+SCRIPT_TRANSCRIPT_LIMIT = 1500
+MAX_POSTS_PER_CLUSTER = 2
+MAX_CLUSTERS_FOR_SCRIPTS = 5
+
+SCRIPTS_SYSTEM_TEMPLATE = """Jesteś ekspertem content creatorów AI. Na podstawie MATERIAŁU ŹRÓDŁOWEGO
+poniżej napisz 3 gotowe skrypty wideo dopasowane do profilu marki.
 
 PROFIL MARKI:
 {brand_profile}
@@ -25,12 +30,22 @@ JUŻ ZAPROPONOWANE / OPUBLIKOWANE POMYSŁY (ostatnie 60 dni) — NIE POWTARZAJ t
 motywów, metafor ani scen:
 {used_ideas}
 
-Każdy skrypt ma temat z listy trendów "breaking" lub "trending".
-Format JSON: {{"scripts": [{{"topic": "...", "hook": "...", "body": "...", "cta": "..."}}]}}
+ZASADA NADRZĘDNA: każdy skrypt musi wyrastać z KONKRETU, który realnie pada w materiale
+źródłowym (pole "materialy": podsumowanie, konkrety, transkrypcja). Nie wymyślaj scenariuszy,
+narzędzi ani sytuacji, których w materiale nie ma. Materiał to obserwacja cudzej rolki —
+bierzesz z niej mechanizm i przekładasz na własny przykład z profilu marki.
+Jeśli materiał nie zawiera żadnego konkretu, pomiń ten temat i weź następny.
+Nie podawaj liczb, oszczędności ani wyników wdrożeń, których w materiale nie ma —
+gdy brakuje konkretu, opisz mechanizm, nie rezultat.
+
+Format JSON: {{"scripts": [{{"topic": "...", "hook": "...", "body": "...", "cta": "...",
+"zrodlo_url": "...", "co_z_materialu": "..."}}]}}
 Hook = pierwsze 5 sekund które zatrzymują scrollowanie.
 Body = 3-4 zdania wartościowej treści.
 CTA = wezwanie do działania — zgodnie z zasadą CTA z profilu marki (nie na siłę do każdej scenki).
-Pisz po polsku, w stylu ze profilu marki.
+zrodlo_url = URL posta z "materialy", na którym stoi ten skrypt.
+co_z_materialu = jedno zdanie: która obserwacja ze źródła jest podstawą tego skryptu.
+Pisz po polsku, w stylu z profilu marki.
 """
 
 
@@ -49,13 +64,42 @@ def format_used_ideas(ideas: list) -> str:
     return "\n".join(f"- {i['topic']}: {i['hook']}" for i in ideas)
 
 
+def build_scripts_payload(db, clusters: list) -> list:
+    """Do promptu idzie materiał źródłowy klastra, nie sama nazwa tematu."""
+    payload = []
+    for cluster in clusters:
+        material = get_cluster_source_material(db, cluster.get("post_ids") or [])
+        if not material:
+            continue
+        payload.append({
+            "topic": cluster["topic"],
+            "engagement": cluster["total_engagement"],
+            "materialy": [
+                {
+                    "konto": m.get("account_label"),
+                    "url": m.get("url"),
+                    "hook": m.get("hook_text") or "",
+                    "podsumowanie": m.get("summary_pl") or "",
+                    "konkrety": m.get("key_points") or [],
+                    "transkrypcja": (m.get("transcript") or "")[:SCRIPT_TRANSCRIPT_LIMIT],
+                }
+                for m in material[:MAX_POSTS_PER_CLUSTER]
+            ],
+        })
+    return payload
+
+
 def generate_scripts(openai_client: OpenAI, clusters: list, db) -> list:
-    trending = [c for c in clusters if "breaking" in c["status"] or "trending" in c["status"]]
+    trending = [c for c in clusters if c["status"] in ("breaking", "trending")]
     if not trending:
         trending = clusters[:3]
     if not trending:
         return []
-    payload = [{"topic": c["topic"], "engagement": c["total_engagement"]} for c in trending[:5]]
+
+    payload = build_scripts_payload(db, trending[:MAX_CLUSTERS_FOR_SCRIPTS])
+    if not payload:
+        print("[generate] brak materiału źródłowego dla klastrów — pomijam skrypty")
+        return []
 
     system = SCRIPTS_SYSTEM_TEMPLATE.format(
         brand_profile=load_brand_profile(),
@@ -80,6 +124,8 @@ def generate_scripts(openai_client: OpenAI, clusters: list, db) -> list:
             hook=script.get("hook", ""),
             body=script.get("body", ""),
             cta=script.get("cta", ""),
+            source_url=script.get("zrodlo_url", ""),
+            source_note=script.get("co_z_materialu", ""),
         )
 
     return scripts
@@ -113,6 +159,11 @@ def build_context(db, openai_client: OpenAI, report_date: str) -> dict:
     hooks = get_hooks_today(db)
     scripts = generate_scripts(openai_client, clusters, db)
 
+    # Trend potwierdzony to taki, o którym mówi więcej niż jedno konto. Reszta to
+    # pojedyncze sygnały — wcześniej trafiały do raportu jako "BREAKING · 1 źródeł".
+    confirmed = [c for c in clusters if (c.get("cross_source_count") or 1) >= 2]
+    single = [c for c in clusters if (c.get("cross_source_count") or 1) < 2]
+
     # attach summaries to social posts (first 20 for diary section)
     social_posts = []
     for post in sorted(posts, key=lambda p: p.get("engagement_score", 0), reverse=True)[:20]:
@@ -123,6 +174,8 @@ def build_context(db, openai_client: OpenAI, report_date: str) -> dict:
         "date": report_date,
         "social_posts": social_posts,
         "trend_clusters": clusters,
+        "confirmed_trends": confirmed,
+        "single_signals": single,
         "top_posts": top_posts,
         "video_scripts": scripts,
         "hooks": hooks,
