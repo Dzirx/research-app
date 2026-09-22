@@ -42,7 +42,10 @@ Format JSON: {{"scripts": [{{"topic": "...", "hook": "...", "body": "...", "cta"
 "zrodlo_url": "...", "co_z_materialu": "..."}}]}}
 Hook = pierwsze 5 sekund które zatrzymują scrollowanie.
 Body = 3-4 zdania wartościowej treści.
-CTA = wezwanie do działania — zgodnie z zasadą CTA z profilu marki (nie na siłę do każdej scenki).
+CTA = wezwanie do działania — zgodnie z zasadą CTA z profilu marki (nie na siłę do każdej
+scenki). Gdy CTA nie pasuje do materiału, zwróć PUSTY string "". Nie wpisuj w to pole
+wyjaśnień w rodzaju "Brak", "brak CTA" ani "scenkę zamyka puenta" — puste pole samo w sobie
+znaczy, że CTA nie ma.
 zrodlo_url = URL posta z "materialy", na którym stoi ten skrypt.
 co_z_materialu = jedno zdanie: która obserwacja ze źródła jest podstawą tego skryptu.
 Pisz po polsku, w stylu z profilu marki.
@@ -62,6 +65,17 @@ def format_used_ideas(ideas: list) -> str:
     if not ideas:
         return "(brak — to pierwsza paczka skryptów)"
     return "\n".join(f"- {i['topic']}: {i['hook']}" for i in ideas)
+
+
+def clean_cta(cta: str) -> str:
+    """
+    Model bywa usłużny i zamiast zostawić CTA puste, wpisuje tam wyjaśnienie
+    ("Brak — scenkę zamyka puenta"), które trafia do raportu jako treść CTA.
+    """
+    lowered = (cta or "").strip().lower().lstrip("-—.: ")
+    if not lowered or lowered.startswith(("brak", "bez cta", "nie dotyczy", "n/a")):
+        return ""
+    return cta.strip()
 
 
 def build_scripts_payload(db, clusters: list) -> list:
@@ -118,6 +132,7 @@ def generate_scripts(openai_client: OpenAI, clusters: list, db) -> list:
     scripts = data.get("scripts", [])
 
     for script in scripts:
+        script["cta"] = clean_cta(script.get("cta", ""))
         insert_script_idea(
             db,
             topic=script.get("topic", ""),
