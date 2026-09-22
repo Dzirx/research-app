@@ -8,6 +8,15 @@ from db.queries import get_client, insert_post, insert_own_post
 # raport regularnie wychodził pusty. Duplikaty odsiewa UNIQUE na posts.url.
 DEFAULT_SCRAPE_WINDOW = "3 days"
 
+# Instagram trzyma rolki w osobnej zakładce i część z nich nie trafia do siatki profilu.
+# Sam post-scraper gubił przez to jedną trzecią materiału (zmierzone: 8 z 12 rolek
+# z 3 dni), w tym najciekawsze — bo to właśnie rolki mają transkrypcje. Odpytujemy
+# oba źródła i scalamy; nakładające się wyniki odsiewa dedup po URL.
+INSTAGRAM_ACTORS = [
+    ("apify/instagram-post-scraper", "siatka profilu"),
+    ("apify/instagram-reel-scraper", "zakładka Reels"),
+]
+
 
 def load_accounts() -> dict:
     with open("accounts.yaml") as f:
@@ -18,11 +27,13 @@ def get_scrape_window(accounts: dict) -> str:
     return (accounts.get("scrape_window") or DEFAULT_SCRAPE_WINDOW).strip()
 
 
-def scrape_instagram_posts(client: ApifyClient, accounts: list, window: str) -> list:
+def scrape_instagram_posts(client: ApifyClient, accounts: list, window: str,
+                           actor: str = "apify/instagram-post-scraper") -> list:
+    """Oba aktory zwracają te same pola, więc mapowanie jest wspólne."""
     results = []
     label_map = {a["url"].rstrip("/").split("/")[-1].lower(): a["label"] for a in accounts}
     usernames = [a["url"].rstrip("/").split("/")[-1] for a in accounts]
-    run = client.actor("apify/instagram-post-scraper").call(run_input={
+    run = client.actor(actor).call(run_input={
         "username": usernames,
         "resultsLimit": 10,
         "onlyPostsNewerThan": window,
@@ -35,6 +46,9 @@ def scrape_instagram_posts(client: ApifyClient, accounts: list, window: str) -> 
             # Apify czasem zwraca puste/błędne wpisy (np. po nieudanym pobraniu konta) —
             # bez ownera i bez treści nie da się ich sensownie przeanalizować ani przypisać.
             print(f"[social] pomijam pusty wpis: {item.get('url') or item.get('id')}")
+            continue
+        if item.get("isPinned"):
+            # reel-scraper nie zna skipPinnedPosts, więc przypięte odsiewamy tutaj
             continue
         results.append({
             "platform": "instagram",
@@ -92,7 +106,10 @@ def run():
 
     all_posts = []
     if accounts.get("instagram"):
-        all_posts += scrape_instagram_posts(apify, accounts["instagram"], window)
+        for actor, opis in INSTAGRAM_ACTORS:
+            found = scrape_instagram_posts(apify, accounts["instagram"], window, actor)
+            print(f"[social] {opis}: {len(found)} pozycji")
+            all_posts += found
 
     if accounts.get("facebook"):
         all_posts += scrape_facebook(apify, accounts["facebook"], window)
@@ -119,7 +136,9 @@ def run():
 
     own_accounts = accounts.get("own_account") or []
     if own_accounts:
-        own_posts = scrape_instagram_posts(apify, own_accounts, window)
+        own_posts = []
+        for actor, _ in INSTAGRAM_ACTORS:
+            own_posts += scrape_instagram_posts(apify, own_accounts, window, actor)
         for post in own_posts:
             insert_own_post(db, content=post["content"], url=post["url"])
         print(f"[social] scraped {len(own_posts)} own posts (do wykrywania publikacji)")
