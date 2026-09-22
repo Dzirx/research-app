@@ -104,10 +104,23 @@ def insert_summary(db, post_id: int, summary_pl: str, trend_tags: list, hook_typ
 
 
 def insert_hook(db, post_id: int, hook_text: str, hook_type: str, why_it_works: str):
-    db.execute(
-        "INSERT INTO hooks (post_id, hook_text, hook_type, why_it_works) VALUES (?, ?, ?, ?)",
-        (post_id, hook_text, hook_type, why_it_works),
-    )
+    """
+    Jeden hook na post. Model potrafi zwrócić tę samą analizę dwa razy (widziane na
+    produkcji: ten sam post dostał dwa identyczne hooki i pokazał się dwukrotnie
+    w sekcji V). Deduplikujemy w kodzie, a nie indeksem UNIQUE, żeby działało też
+    na bazach, w których duplikaty już siedzą.
+    """
+    existing = db.execute("SELECT id FROM hooks WHERE post_id = ?", (post_id,)).fetchone()
+    if existing:
+        db.execute(
+            "UPDATE hooks SET hook_text = ?, hook_type = ?, why_it_works = ? WHERE id = ?",
+            (hook_text, hook_type, why_it_works, existing["id"]),
+        )
+    else:
+        db.execute(
+            "INSERT INTO hooks (post_id, hook_text, hook_type, why_it_works) VALUES (?, ?, ?, ?)",
+            (post_id, hook_text, hook_type, why_it_works),
+        )
     db.commit()
 
 

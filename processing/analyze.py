@@ -95,17 +95,21 @@ def compute_delta(cluster_topic: str, total_engagement: int, history_avg: dict) 
     return total_engagement - avg
 
 
-def ensure_summary(summary: str, caption: str) -> str:
+def ensure_summary(summary: str, caption: str, transcript: str = "") -> str:
     """
-    Model bywa zbyt dosłowny i przy poście bez transkrypcji zwraca sam znacznik
-    "[brak transkrypcji]" bez streszczenia. Wtedy podstawiamy początek captionu —
-    lepszy skrócony opis niż pusta karta w raporcie.
+    Dwie rzeczy, których nie zostawiamy modelowi:
+    1. przy poście bez transkrypcji potrafi zwrócić sam znacznik "[brak transkrypcji]"
+       bez streszczenia — wtedy podstawiamy początek captionu,
+    2. albo odwrotnie: pomija znacznik, choć transkrypcji nie było — wtedy go dokładamy,
+       żeby w raporcie było widać, że opis stoi na reklamie, a nie na treści rolki.
     """
     text = (summary or "").strip()
-    if text.replace(NO_TRANSCRIPT_MARK, "").strip():
-        return text
-    fallback = " ".join((caption or "").split())[:300]
-    return f"{NO_TRANSCRIPT_MARK} {fallback}".strip() if fallback else text
+    if not text.replace(NO_TRANSCRIPT_MARK, "").strip():
+        fallback = " ".join((caption or "").split())[:300]
+        text = f"{NO_TRANSCRIPT_MARK} {fallback}".strip() if fallback else text
+    if not (transcript or "").strip() and text and not text.startswith(NO_TRANSCRIPT_MARK):
+        text = f"{NO_TRANSCRIPT_MARK} {text}"
+    return text
 
 
 def analyze_batch(openai_client: OpenAI, batch: list, offset: int) -> list:
@@ -201,7 +205,8 @@ def run(posts: list | None = None):
             continue
         insert_summary(
             db, post_db_id,
-            summary_pl=ensure_summary(analysis.get("summary_pl", ""), post.get("content", "")),
+            summary_pl=ensure_summary(analysis.get("summary_pl", ""), post.get("content", ""),
+                                      post.get("transcript", "")),
             trend_tags=analysis.get("trend_tags", []),
             hook_type=analysis.get("hook_type", ""),
             key_points=analysis.get("key_points", []),
